@@ -1,118 +1,118 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Button } from 'react-native';
+import { Camera, Templates, useCameraDevice, useCameraFormat, useCameraPermission, useFrameProcessor, useMicrophonePermission } from 'react-native-vision-camera';
+import { CameraRoll } from "@react-native-camera-roll/camera-roll";
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+const MyComponent: React.FC = () => {
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const [isPhoto, setIsPhoto] = useState(false)
+  const [isVideo, setIsVideo] = useState(true)
+  const [isAudio, setIsAudio] = useState(true)
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  const camera = useRef<Camera>(null)
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  if (!hasPermission) {
+    return (
+      <View style={styles.container}>
+        <Text>No permission</Text>
+        <Button title="Request permission" onPress={requestPermission} />
+      </View>
+    );
+  }
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const device = useCameraDevice('back')
+  if (device == null) return <Text>No Camera Found</Text>;
+
+  const format = useCameraFormat(device, [
+    { photoResolution: 'max' }
+  ])
+
+
+  // const format = useCameraFormat(device, Templates.Instagram)
+
+  const takePhoto = async () => {
+    try {
+      if (camera.current == null) throw new Error('Camera ref is null!')
+
+      console.log('Taking photo...')
+      const file = await camera.current.takePhoto({
+        flash: 'off',
+        qualityPrioritization: 'quality',
+        enableShutterSound: true
+      });
+      const result = await fetch(`file://${file.path}`)
+      const data = await result.blob();
+
+      console.log('Photo taken!', file, data);
+
+      await CameraRoll.saveAsset(`file://${file.path}`, {
+        type: 'photo',
+      })
+
+    } catch (e) {
+      console.error('Failed to take photo!', e)
+    }
+  }
+
+  const takeVideo = async () => {
+    // setIsPhoto(false);
+    setIsVideo(true);
+    setIsAudio(true);
+    try {
+      if (camera.current == null) throw new Error('Camera ref is null!')
+
+      console.log('Taking video...')
+      const file = await camera.current.startRecording({
+
+        onRecordingFinished: async (video) => {
+          const path = video.path
+          await CameraRoll.saveAsset(`file://${path}`, {
+            type: 'video',
+          })
+        }, onRecordingError: (error) => console.error(error)
+      });
+
+    } catch (e) {
+      console.error('Failed to take video!', e)
+    }
+  }
+
+  const stopVideo = async () => {
+    try {
+      if (camera.current == null) throw new Error('Camera ref is null!')
+
+      console.log('Stopping video...')
+      await camera.current.stopRecording();
+    } catch (e) {
+      console.error('Failed to stop video!', e)
+    }
+  }
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <>
+      <Camera
+        ref={camera}
+        style={StyleSheet.absoluteFill}
+        device={device}
+        isActive={true}
+        format={format}
+        photo={true}
+        video={true}
+        audio={true}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <Button title="Take Photo" onPress={takePhoto} />
+      <Button title="Take Video" onPress={takeVideo} />
+      <Button title="Stop Video" onPress={stopVideo} />
+    </>
   );
-}
+};
+
+export default MyComponent;
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
-
-export default App;
